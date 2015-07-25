@@ -1,0 +1,155 @@
+---
+title: "Project"
+author: "Prasanna Krishna Rao"
+date: "Saturday, July 25, 2015"
+output: word_document
+---
+-----------------------------------------------------
+1) Check for those variables which have no variation
+2) Remove those variables
+3) Check for outliers and missing values
+---------------------------------------------------
+
+```{r}
+library(caret)
+library(e1071)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+library(ROCR)
+setwd('C:/Prasanna Krishna/Prasanna Krishna/Analytics/Coursera/DataScience/Machine Language/Project')
+pmltrain<-read.csv('pml-training.csv')
+nsv<-nearZeroVar(pmltrain,saveMetrics=TRUE)
+nsv1<-read.csv('nsv.csv')
+##nsv returns 60 columns which have no impact
+
+cols<-1:60
+for (i in 1:60) 
+{ cols[i]<-grep(nsv1[i,1], colnames(pmltrain))}
+
+pmltrain1<-pmltrain[,-c(cols)]
+
+## 41 columns have more than 95 % missing values , removing those 
+
+missing<-colnames(pmltrain1)[colSums(is.na(pmltrain1)) > 0]
+
+
+cols<-1:41
+for (i in 1:41) 
+{ cols[i]<-grep(missing[i], colnames(pmltrain1))}
+
+
+for( index in 1:41)
+{
+   print (missing[index])
+   print ( table(pmltrain1[,cols[index]] <  max(pmltrain1$max_roll_belt,na.rm=TRUE))) 
+   print ("******************")
+}
+
+## remove columns like timestamp, id 
+pmltrain2<-pmltrain1[,-c(cols)]
+pmltrain2<-pmltrain2[,-c(1,2,3,4,5,6)]
+
+##We are left with  53 variables 
+ 
+```
+
+------------------------------------------------
+Two fold cross validation using caret
+1)70 % training
+2)30 % validation
+---------------------------------------------
+
+```{r}
+intrain<-createDataPartition(y=pmltrain2$classe,p=.7,list=FALSE)
+training<-pmltrain2[intrain,]
+validation<-pmltrain2[-intrain,]
+ 
+```
+
+-------------------------------------------------------------
+Rpart  and RandomForest machine learning algoritims depends upon parameters like 
+Cp , ntree etc
+Calculating optimum Cp for rpart we get 
+--------------------------------------------------------------
+
+```{r}
+cpgrid=expand.grid(.cp=seq(.001,.5,.005))
+cartmodel<-rpart(classe~.,data=training,method="class",cp=.001)
+forestmodel<-randomForest(classe~.,data=training,cp=.001) 
+```
+
+-------------------------------------------------------
+Predicting on validation using rpart and randomforest
+1) Rpart
+2) RandomForest 
+--------------------------------------------------------
+
+```{r}
+predictcart<-predict(cartmodel,newdata=validation,type="class")
+## Using Random Forest , predicting on validation sample
+predictforest<-predict(forestmodel,newdata=validation) 
+```
+
+-----------------------------------------------------------------
+Lets calculate outof sample errors for both rpart and randomForest
+1)Random Forest
+--------------------------------------------------------------------------
+
+```{r}
+##Out of sample error for rpart
+ sum(diag(table(validation$classe,predictcart)))/(nrow(validation))
+
+```
+
+```{r}
+##Out of sample error for random forest
+## Confusion Matrix
+sum(diag(table(validation$classe,predictforest)))
+##  Accuracy 
+ sum(diag(table(validation$classe,predictforest)))/(nrow(validation))
+                        
+```
+
+-------------------------
+Out of Sample error :
+--------------------------
+
+```{r}
+## Out Of Sample error
+  error = 1 - (sum(diag(table(validation$classe,predictforest)))/(nrow(validation)))  
+  error 
+```
+
+-------------------------------------------
+The out of sample error rate is .4% i.e .004
+---------------------------------------------
+
+
+----------------------------------------------------------------------------
+Using RandomForest to predict on the given test , applying the same preprocessing as in training ,we get  
+---------------------------------------------------------------------------
+
+```{r}
+testr<-read.csv('pml-testing.csv')
+cols<-1:60
+for (i in 1:60) 
+{ cols[i]<-grep(nsv1[i,1], colnames(testr))}
+testr1<-testr[,-c(cols)]
+missing<-colnames(testr1)[colSums(is.na(testr1)) > 0]
+
+cols<-1:41
+for (i in 1:41) 
+{ cols[i]<-grep(missing[i], colnames(testr1))}
+
+testr2<-testr1[,-c(cols)]
+testr2<-testr2[,-c(1,2,3,4,5,6)]
+
+predicttest<-predict(forestmodel,newdata=testr2)
+```
+
+The predictions on test dataset are
+
+```{r}
+print (predicttest)
+```
